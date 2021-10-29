@@ -71,8 +71,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println(files)
-
 	t := time.Now()
 	r := mux.NewRouter()
 
