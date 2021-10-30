@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -22,7 +23,7 @@ var index = `
 		<meta charset="UTF-8">
 		<meta http-equiv="X-UA-Compatible" content="IE=edge">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Document</title>
+		<title>serve</title>
 	</head>
 	<body>
 		<ul>
@@ -77,6 +78,10 @@ func main() {
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, _ := template.New("").Parse(index)
 		tmpl.Execute(w, map[string]interface{}{"Files": files})
+	})
+
+	r.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(files)
 	})
 
 	r.HandleFunc("/f/{id}", func(w http.ResponseWriter, r *http.Request) {
