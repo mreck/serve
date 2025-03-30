@@ -16,7 +16,7 @@ import (
 )
 
 type File struct {
-	ID   string `json:"id"`
+	Hash string `json:"hash"`
 	Path string `json:"path"`
 	URL  string `json:"url"`
 }
@@ -44,7 +44,7 @@ func main() {
 		id := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 
 		files = append(files, File{
-			ID:   id,
+			Hash: id,
 			Path: abs,
 			URL:  fmt.Sprintf("/f/%s", id),
 		})
@@ -68,11 +68,11 @@ func main() {
 		json.NewEncoder(w).Encode(files)
 	})
 
-	r.HandleFunc("/f/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
+	r.HandleFunc("/f/{hash}", func(w http.ResponseWriter, r *http.Request) {
+		hash := r.PathValue("hash")
 
 		for _, f := range files {
-			if f.ID == id {
+			if f.Hash == hash {
 				fmt.Println(f)
 				fp, err := os.Open(f.Path)
 				if err != nil {
@@ -81,7 +81,7 @@ func main() {
 				}
 				defer fp.Close()
 
-				http.ServeContent(w, r, id, t, fp)
+				http.ServeContent(w, r, hash, t, fp)
 				return
 			}
 		}
