@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,36 +13,18 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/gorilla/mux"
 )
-
-var index = `
-	<!DOCTYPE html>
-	<html lang="en">
-	<head>
-		<meta charset="UTF-8">
-		<meta http-equiv="X-UA-Compatible" content="IE=edge">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>serve</title>
-	</head>
-	<body>
-		<ul>
-			{{range .Files}}
-			<li>
-				<a href="{{.URL}}">{{.Path}}</a>
-			</li>
-			{{end}}
-		</ul>
-	</body>
-	</html>
-	`
 
 type File struct {
 	ID   string `json:"id"`
 	Path string `json:"path"`
 	URL  string `json:"url"`
 }
+
+var (
+	//go:embed index.html
+	index string
+)
 
 func main() {
 	var files []File
@@ -73,19 +56,20 @@ func main() {
 	}
 
 	t := time.Now()
-	r := mux.NewRouter()
+	r := http.NewServeMux()
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, _ := template.New("").Parse(index)
-		tmpl.Execute(w, map[string]interface{}{"Files": files})
+		tmpl.Execute(w, map[string]any{"Files": files})
 	})
 
 	r.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(files)
 	})
 
 	r.HandleFunc("/f/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id := mux.Vars(r)["id"]
+		id := r.PathValue("id")
 
 		for _, f := range files {
 			if f.ID == id {
