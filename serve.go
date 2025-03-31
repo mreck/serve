@@ -1,18 +1,14 @@
 package main
 
 import (
-	"crypto/sha256"
 	_ "embed"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"html/template"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
+	"serve/database"
 	"time"
 )
 
@@ -28,11 +24,13 @@ var (
 
 	serverAddr string
 	logAsJSON  bool
+	rootDir    string
 )
 
 func init() {
 	flag.StringVar(&serverAddr, "addr", "0.0.0.0:8000", "The server address")
 	flag.BoolVar(&logAsJSON, "json", false, "Format log messages as JSON")
+	flag.StringVar(&rootDir, "root", ".", "The root dir to serve")
 	flag.Parse()
 
 	var l *slog.Logger
@@ -45,32 +43,9 @@ func init() {
 }
 
 func main() {
-	var files []File
-
-	err := filepath.WalkDir(".", func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.IsDir() {
-			return nil
-		}
-
-		abs, _ := filepath.Abs(path)
-
-		hasher := sha256.New()
-		hasher.Write([]byte(path))
-		id := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
-
-		files = append(files, File{
-			PathHash: id,
-			FilePath: abs,
-			URL:      fmt.Sprintf("/f/%s", id),
-		})
-
-		return nil
-	})
+	d, err := database.New(rootDir)
 	if err != nil {
-		slog.Error("walking dir failed", "error", err)
+		slog.Error("loading data failed", "error", err)
 		os.Exit(1)
 	}
 
@@ -79,32 +54,34 @@ func main() {
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, _ := template.New("").Parse(index)
-		tmpl.Execute(w, map[string]any{"Files": files})
+		tmpl.Execute(w, map[string]any{"Files": d.GetAllFiles()})
 	})
 
 	r.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(files)
+		jsonr(w, d.GetAllFiles(), nil)
+	})
+
+	r.HandleFunc("/reload", func(w http.ResponseWriter, r *http.Request) {
+		jsonr(w, "ok", d.Reload())
 	})
 
 	r.HandleFunc("/f/{hash}", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.PathValue("hash")
 
-		for _, f := range files {
-			if f.PathHash == hash {
-				fp, err := os.Open(f.FilePath)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				defer fp.Close()
-
-				http.ServeContent(w, r, hash, t, fp)
-				return
-			}
+		f, ok := d.GetFileByHash(hash)
+		if !ok {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
 		}
 
-		http.Error(w, "file not found", http.StatusNotFound)
+		fp, err := os.Open(f.FilePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer fp.Close()
+
+		http.ServeContent(w, r, hash, t, fp)
 	})
 
 	srv := &http.Server{
@@ -120,5 +97,20 @@ func main() {
 	if err != nil {
 		slog.Error("starting server failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+func jsonr(w http.ResponseWriter, data any, err error) {
+	w.Header().Add("Content-Type", "application/json")
+
+	// @TODO: handle encoding errors
+	if err != nil {
+		json.NewEncoder(w).Encode(struct {
+			Error error `json:"error"`
+		}{err})
+	} else {
+		json.NewEncoder(w).Encode(struct {
+			Data any `json:"data"`
+		}{data})
 	}
 }
