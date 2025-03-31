@@ -5,14 +5,29 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>serve</title>
+    <style>
+        a {
+            color: black;
+            text-decoration: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: black;
+                color: white;
+            }
+            a {
+                color: white;
+            }
+        }
+    </style>
 </head>
 <body>
     <ul>
-        {{range .Files}}
+        {{ range .Files  }}
         <li>
-            <a href="{{.URL}}">{{.Path}}</a>
+            <a href="{{ .URL }}">{{ .FilePath }}</a>
         </li>
-        {{end}}
+        {{ end }}
     </ul>
 </body>
 </html>
