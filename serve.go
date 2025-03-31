@@ -5,10 +5,11 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,16 +25,33 @@ type File struct {
 var (
 	//go:embed index.html
 	index string
+
+	serverAddr string
+	logAsJSON  bool
 )
+
+func init() {
+	flag.StringVar(&serverAddr, "addr", "0.0.0.0:8000", "The server address")
+	flag.BoolVar(&logAsJSON, "json", false, "Format log messages as JSON")
+	flag.Parse()
+
+	var l *slog.Logger
+	if logAsJSON {
+		l = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	} else {
+		l = slog.New(slog.NewTextHandler(os.Stdout, nil))
+	}
+	slog.SetDefault(l)
+}
 
 func main() {
 	var files []File
 
-	err := filepath.WalkDir(".", func(path string, dentry fs.DirEntry, err error) error {
+	err := filepath.WalkDir(".", func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if dentry.IsDir() {
+		if dirEntry.IsDir() {
 			return nil
 		}
 
@@ -52,7 +70,8 @@ func main() {
 		return nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("walking dir failed", "error", err)
+		os.Exit(1)
 	}
 
 	t := time.Now()
@@ -73,7 +92,6 @@ func main() {
 
 		for _, f := range files {
 			if f.Hash == hash {
-				fmt.Println(f)
 				fp, err := os.Open(f.Path)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -91,10 +109,16 @@ func main() {
 
 	srv := &http.Server{
 		Handler:      r,
-		Addr:         "0.0.0.0:8000",
+		Addr:         serverAddr,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
-	log.Fatal(srv.ListenAndServe())
+	slog.Info("starting server", "addr", serverAddr)
+
+	err = srv.ListenAndServe()
+	if err != nil {
+		slog.Error("starting server failed", "error", err)
+		os.Exit(1)
+	}
 }
