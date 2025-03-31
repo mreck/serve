@@ -25,12 +25,14 @@ var (
 	serverAddr string
 	logAsJSON  bool
 	rootDir    string
+	noIndex    bool
 )
 
 func init() {
 	flag.StringVar(&serverAddr, "addr", "0.0.0.0:8000", "The server address")
 	flag.BoolVar(&logAsJSON, "json", false, "Format log messages as JSON")
 	flag.StringVar(&rootDir, "root", ".", "The root dir to serve")
+	flag.BoolVar(&noIndex, "noindex", false, "Don't create an index page")
 	flag.Parse()
 
 	var l *slog.Logger
@@ -52,10 +54,12 @@ func main() {
 	t := time.Now()
 	r := http.NewServeMux()
 
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		tmpl, _ := template.New("").Parse(index)
-		tmpl.Execute(w, map[string]any{"Files": d.GetAllFiles()})
-	})
+	if !noIndex {
+		r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			tmpl, _ := template.New("").Parse(index)
+			tmpl.Execute(w, map[string]any{"Files": d.GetAllFiles()})
+		})
+	}
 
 	r.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
 		jsonr(w, d.GetAllFiles(), nil)
