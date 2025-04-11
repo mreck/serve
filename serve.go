@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"embed"
-	"flag"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"serve/config"
 	"serve/database"
 
 	"github.com/mreck/gotils/httptils"
@@ -21,24 +21,13 @@ var (
 
 	//go:embed template/*
 	templateFS embed.FS
-
-	serverAddr string
-	logAsJSON  bool
-	rootDir    string
-	withUI     bool
-	withAPI    bool
 )
 
 func init() {
-	flag.StringVar(&serverAddr, "addr", "0.0.0.0:8000", "The server address")
-	flag.BoolVar(&logAsJSON, "json", false, "Format log messages as JSON")
-	flag.StringVar(&rootDir, "root", ".", "The root dir to serve")
-	flag.BoolVar(&withUI, "ui", false, "Run with web UI")
-	flag.BoolVar(&withAPI, "api", true, "Run with API")
-	flag.Parse()
+	config.Load()
 
 	var l *slog.Logger
-	if logAsJSON {
+	if config.Get().LogAsJSON {
 		l = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	} else {
 		l = slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -50,7 +39,7 @@ func main() {
 	ctx := context.Background()
 	fileURLPrefix := "/f/"
 
-	db, err := database.New(rootDir, fileURLPrefix)
+	db, err := database.New(config.Get().RootDir, fileURLPrefix)
 	if err != nil {
 		slog.Error("loading data failed", "error", err)
 		os.Exit(1)
@@ -66,7 +55,7 @@ func main() {
 
 	r := http.NewServeMux()
 
-	if withUI {
+	if config.Get().WithUI {
 		html := httptils.NewHTMLHandler(ctx, t)
 
 		r.Handle("/static/", http.FileServer(http.FS(staticFS)))
@@ -81,7 +70,7 @@ func main() {
 		}))
 	}
 
-	if withAPI {
+	if config.Get().WithAPI {
 		json := httptils.NewJSONHandler(ctx)
 
 		r.HandleFunc("/api/data", json.H(func(ctx context.Context, r *http.Request) (int, any, error) {
@@ -114,12 +103,16 @@ func main() {
 
 	srv := &http.Server{
 		Handler:      r,
-		Addr:         serverAddr,
+		Addr:         config.Get().ServerAddr,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
-	slog.Info("starting server", "addr", serverAddr)
+	slog.Info("starting server",
+		"addr", config.Get().ServerAddr,
+		"root", config.Get().RootDir,
+		"ui", config.Get().WithUI,
+		"api", config.Get().WithAPI)
 
 	err = srv.ListenAndServe()
 	if err != nil {
