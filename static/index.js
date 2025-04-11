@@ -12,10 +12,10 @@ function update() {
         .filter(Boolean);
 
     for (let i = 0; i < $files.children.length; i++) {
-        const txt = $files.children[i].firstElementChild.text.toLowerCase();
+        const queryStr = $files.children[i].dataset.queryStr;
         let match = true;
         for (let j = 0; j < query.length; j++) {
-            if (!txt.includes(query[j])) {
+            if (!queryStr.includes(query[j])) {
                 match = false;
                 break;
             }

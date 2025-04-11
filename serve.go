@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"serve/config"
@@ -39,7 +41,7 @@ func main() {
 	ctx := context.Background()
 	fileURLPrefix := "/f/"
 
-	db, err := database.New(config.Get().RootDir, fileURLPrefix)
+	db, err := database.New(config.Get().Dirs, fileURLPrefix)
 	if err != nil {
 		slog.Error("loading data failed", "error", err)
 		os.Exit(1)
@@ -47,7 +49,13 @@ func main() {
 
 	startTime := time.Now()
 
-	t, err := template.ParseFS(templateFS, "template/*.html")
+	tfuncs := template.FuncMap{
+		"getQueryStr": func(f database.File) string {
+			return strings.ToLower(fmt.Sprintf("dir:%s %s", f.DirName, f.RelPath))
+		},
+	}
+
+	t, err := template.New("").Funcs(tfuncs).ParseFS(templateFS, "template/*.html")
 	if err != nil {
 		slog.Error("loading templates failed", "error", err)
 		os.Exit(1)
@@ -110,7 +118,7 @@ func main() {
 
 	slog.Info("starting server",
 		"addr", config.Get().ServerAddr,
-		"root", config.Get().RootDir,
+		"dirs", config.Get().Dirs,
 		"ui", config.Get().WithUI,
 		"api", config.Get().WithAPI)
 

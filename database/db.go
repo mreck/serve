@@ -17,6 +17,7 @@ var (
 )
 
 type File struct {
+	DirName  string `json:"dir"`
 	PathHash string `json:"hash"`
 	RelPath  string `json:"path"`
 	URL      string `json:"url"`
@@ -24,19 +25,19 @@ type File struct {
 }
 
 func (f File) FullPath() string {
-	return filepath.Join(f.db.root, f.RelPath)
+	return filepath.Join(f.db.dirs[f.DirName], f.RelPath)
 }
 
 type DB struct {
-	root      string
+	dirs      map[string]string
 	urlPrefix string
 	files     []File
 	m         sync.RWMutex
 }
 
-func New(root string, urlPrefix string) (*DB, error) {
+func New(dirs map[string]string, urlPrefix string) (*DB, error) {
 	db := &DB{
-		root:      root,
+		dirs:      dirs,
 		urlPrefix: urlPrefix,
 	}
 
@@ -48,13 +49,14 @@ func New(root string, urlPrefix string) (*DB, error) {
 	return db, nil
 }
 
-func (db *DB) newFile(relPath string) File {
+func (db *DB) newFile(relPath string, dirName string) File {
 	relPath = strings.ReplaceAll(relPath, "\\", "/")
 	hasher := sha256.New()
 	hasher.Write([]byte(relPath))
 	hash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 
 	return File{
+		DirName:  dirName,
 		PathHash: hash,
 		RelPath:  relPath,
 		URL:      fmt.Sprintf("%s%s", db.urlPrefix, hash),
@@ -65,25 +67,27 @@ func (db *DB) newFile(relPath string) File {
 func (db *DB) Reload() error {
 	var files []File
 
-	err := filepath.WalkDir(db.root, func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.IsDir() {
+	for dirName, dirPath := range db.dirs {
+		err := filepath.WalkDir(dirPath, func(path string, dirEntry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if dirEntry.IsDir() {
+				return nil
+			}
+
+			rel, err := filepath.Rel(dirPath, path)
+			if err != nil {
+				return err
+			}
+
+			files = append(files, db.newFile(rel, dirName))
+
 			return nil
-		}
-
-		rel, err := filepath.Rel(db.root, path)
+		})
 		if err != nil {
 			return err
 		}
-
-		files = append(files, db.newFile(rel))
-
-		return nil
-	})
-	if err != nil {
-		return err
 	}
 
 	db.m.Lock()
@@ -116,12 +120,14 @@ func (db *DB) GetFileByHash(hash string) (File, bool) {
 func (db *DB) RenameFile(hash string, fn string) (File, error) {
 	for i, f := range db.files {
 		if f.PathHash == hash {
-			err := os.Rename(filepath.Join(db.root, f.RelPath), filepath.Join(db.root, fn))
+			dirPath := db.dirs[f.DirName]
+
+			err := os.Rename(filepath.Join(dirPath, f.RelPath), filepath.Join(dirPath, fn))
 			if err != nil {
 				return File{}, err
 			}
 
-			f = db.newFile(fn)
+			f = db.newFile(fn, f.DirName)
 			db.files[i] = f
 
 			return f, nil
