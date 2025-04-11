@@ -46,7 +46,7 @@ func Load() {
 	boolVar(&c.LogAsJSON, "json", false, "Format log messages as JSON")
 	stringVar(&dirs, "dirs", ".", "The dirs that will be served")
 	boolVar(&c.WithUI, "ui", false, "Run with web UI")
-	boolVar(&c.WithAPI, "api", true, "Run with API")
+	boolVar(&c.WithAPI, "api", true, "Run with JSON API")
 	flag.Parse()
 
 	c.Dirs = map[string]string{}
