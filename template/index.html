@@ -1,0 +1,15 @@
+{{ template "_header.html" . }}
+
+<h1>Index</h1>
+
+<input type="text" id="filter" autofocus>
+
+<ul id="files">
+    {{ range .Files }}
+    <li>
+        <a href="{{ .URL }}">{{ .RelPath }}</a>
+    </li>
+    {{ end }}
+</ul>
+
+{{ template "_footer.html" . }}

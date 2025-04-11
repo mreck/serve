@@ -1,0 +1,46 @@
+:root {
+    --fg: black;
+    --bg: white;
+    --hl: darkblue;
+    --font: "Lucida Sans", "Lucida Sans Regular", "Lucida Grande",
+        "Lucida Sans Unicode", Geneva, Verdana, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --fg: white;
+        --bg: black;
+        --hl: cornflowerblue;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font);
+    padding: 0 2rem;
+    background-color: var(--bg);
+    color: var(--fg);
+}
+
+input {
+    font-family: var(--font);
+    margin: 2rem 0;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    background-color: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--fg);
+}
+
+a {
+    color: var(--fg);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+a:hover {
+    color: var(--hl);
+}

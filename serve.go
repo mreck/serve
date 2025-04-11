@@ -1,8 +1,8 @@
 package main
 
 import (
-	_ "embed"
-	"encoding/json"
+	"context"
+	"embed"
 	"flag"
 	"html/template"
 	"log/slog"
@@ -11,23 +11,30 @@ import (
 	"time"
 
 	"serve/database"
+
+	"github.com/mreck/gotils/httptils"
 )
 
 var (
-	//go:embed index.html
-	index string
+	//go:embed static/*
+	staticFS embed.FS
+
+	//go:embed template/*
+	templateFS embed.FS
 
 	serverAddr string
 	logAsJSON  bool
 	rootDir    string
-	noIndex    bool
+	withUI     bool
+	withAPI    bool
 )
 
 func init() {
 	flag.StringVar(&serverAddr, "addr", "0.0.0.0:8000", "The server address")
 	flag.BoolVar(&logAsJSON, "json", false, "Format log messages as JSON")
 	flag.StringVar(&rootDir, "root", ".", "The root dir to serve")
-	flag.BoolVar(&noIndex, "noindex", false, "Don't create an index page")
+	flag.BoolVar(&withUI, "ui", false, "Run with web UI")
+	flag.BoolVar(&withAPI, "api", true, "Run with API")
 	flag.Parse()
 
 	var l *slog.Logger
@@ -40,6 +47,7 @@ func init() {
 }
 
 func main() {
+	ctx := context.Background()
 	fileURLPrefix := "/f/"
 
 	db, err := database.New(rootDir, fileURLPrefix)
@@ -49,22 +57,41 @@ func main() {
 	}
 
 	startTime := time.Now()
-	r := http.NewServeMux()
 
-	if !noIndex {
-		r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			tmpl, _ := template.New("").Parse(index)
-			tmpl.Execute(w, map[string]any{"Files": db.GetAllFiles()})
-		})
+	t, err := template.ParseFS(templateFS, "template/*.html")
+	if err != nil {
+		slog.Error("loading templates failed", "error", err)
+		os.Exit(1)
 	}
 
-	r.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
-		jsonr(w, db.GetAllFiles(), nil)
-	})
+	r := http.NewServeMux()
 
-	r.HandleFunc("/reload", func(w http.ResponseWriter, r *http.Request) {
-		jsonr(w, "ok", db.Reload())
-	})
+	if withUI {
+		html := httptils.NewHTMLHandler(ctx, t)
+
+		r.Handle("/static/", http.FileServer(http.FS(staticFS)))
+
+		r.HandleFunc("/", html.H(func(ctx context.Context, r *http.Request) (int, string, httptils.D, error) {
+			data := httptils.D{
+				"Files":   db.GetAllFiles(),
+				"Styles":  []string{"styles", "index"},
+				"Scripts": []string{"index"},
+			}
+			return http.StatusOK, "index.html", data, nil
+		}))
+	}
+
+	if withAPI {
+		json := httptils.NewJSONHandler(ctx)
+
+		r.HandleFunc("/api/data", json.H(func(ctx context.Context, r *http.Request) (int, any, error) {
+			return http.StatusOK, db.GetAllFiles(), nil
+		}))
+
+		r.HandleFunc("/api/reload", json.H(func(ctx context.Context, r *http.Request) (int, any, error) {
+			return http.StatusOK, "ok", db.Reload()
+		}))
+	}
 
 	r.HandleFunc(fileURLPrefix+"{hash}", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.PathValue("hash")
@@ -98,20 +125,5 @@ func main() {
 	if err != nil {
 		slog.Error("starting server failed", "error", err)
 		os.Exit(1)
-	}
-}
-
-func jsonr(w http.ResponseWriter, data any, err error) {
-	w.Header().Add("Content-Type", "application/json")
-
-	// @TODO: handle encoding errors
-	if err != nil {
-		json.NewEncoder(w).Encode(struct {
-			Error error `json:"error"`
-		}{err})
-	} else {
-		json.NewEncoder(w).Encode(struct {
-			Data any `json:"data"`
-		}{data})
 	}
 }

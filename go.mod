@@ -1,3 +1,7 @@
 module serve
 
-go 1.23
+go 1.23.4
+
+require github.com/mreck/gotils v1.8.0
+
+require golang.org/x/exp v0.0.0-20250207012021-f9890c6ad9f3 // indirect
