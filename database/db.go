@@ -3,26 +3,42 @@ package database
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+)
+
+var (
+	ErrNotFound = errors.New("not found")
 )
 
 type File struct {
 	PathHash string `json:"hash"`
-	FilePath string `json:"path"`
+	RelPath  string `json:"path"`
 	URL      string `json:"url"`
+	db       *DB
+}
+
+func (f File) FullPath() string {
+	return filepath.Join(f.db.root, f.RelPath)
 }
 
 type DB struct {
-	root  string
-	files []File
-	m     sync.RWMutex
+	root      string
+	urlPrefix string
+	files     []File
+	m         sync.RWMutex
 }
 
-func New(root string) (*DB, error) {
-	db := &DB{root: root}
+func New(root string, urlPrefix string) (*DB, error) {
+	db := &DB{
+		root:      root,
+		urlPrefix: urlPrefix,
+	}
 
 	err := db.Reload()
 	if err != nil {
@@ -30,6 +46,20 @@ func New(root string) (*DB, error) {
 	}
 
 	return db, nil
+}
+
+func (db *DB) newFile(relPath string) File {
+	relPath = strings.ReplaceAll(relPath, "\\", "/")
+	hasher := sha256.New()
+	hasher.Write([]byte(relPath))
+	hash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+	return File{
+		PathHash: hash,
+		RelPath:  relPath,
+		URL:      fmt.Sprintf("%s%s", db.urlPrefix, hash),
+		db:       db,
+	}
 }
 
 func (db *DB) Reload() error {
@@ -43,17 +73,12 @@ func (db *DB) Reload() error {
 			return nil
 		}
 
-		abs, _ := filepath.Abs(path)
+		rel, err := filepath.Rel(db.root, path)
+		if err != nil {
+			return err
+		}
 
-		hasher := sha256.New()
-		hasher.Write([]byte(path))
-		hash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
-
-		files = append(files, File{
-			PathHash: hash,
-			FilePath: abs,
-			URL:      fmt.Sprintf("/f/%s", hash),
-		})
+		files = append(files, db.newFile(rel))
 
 		return nil
 	})
@@ -86,4 +111,22 @@ func (db *DB) GetFileByHash(hash string) (File, bool) {
 	}
 
 	return File{}, false
+}
+
+func (db *DB) RenameFile(hash string, fn string) (File, error) {
+	for i, f := range db.files {
+		if f.PathHash == hash {
+			err := os.Rename(filepath.Join(db.root, f.RelPath), filepath.Join(db.root, fn))
+			if err != nil {
+				return File{}, err
+			}
+
+			f = db.newFile(fn)
+			db.files[i] = f
+
+			return f, nil
+		}
+	}
+
+	return File{}, ErrNotFound
 }

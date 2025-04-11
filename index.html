@@ -57,7 +57,7 @@
     <ul id="files">
         {{ range .Files }}
         <li>
-            <a href="{{ .URL }}">{{ .FilePath }}</a>
+            <a href="{{ .URL }}">{{ .RelPath }}</a>
         </li>
         {{ end }}
     </ul>

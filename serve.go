@@ -8,15 +8,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"serve/database"
 	"time"
-)
 
-type File struct {
-	PathHash string `json:"hash"`
-	FilePath string `json:"path"`
-	URL      string `json:"url"`
-}
+	"serve/database"
+)
 
 var (
 	//go:embed index.html
@@ -45,47 +40,49 @@ func init() {
 }
 
 func main() {
-	d, err := database.New(rootDir)
+	fileURLPrefix := "/f/"
+
+	db, err := database.New(rootDir, fileURLPrefix)
 	if err != nil {
 		slog.Error("loading data failed", "error", err)
 		os.Exit(1)
 	}
 
-	t := time.Now()
+	startTime := time.Now()
 	r := http.NewServeMux()
 
 	if !noIndex {
 		r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			tmpl, _ := template.New("").Parse(index)
-			tmpl.Execute(w, map[string]any{"Files": d.GetAllFiles()})
+			tmpl.Execute(w, map[string]any{"Files": db.GetAllFiles()})
 		})
 	}
 
 	r.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
-		jsonr(w, d.GetAllFiles(), nil)
+		jsonr(w, db.GetAllFiles(), nil)
 	})
 
 	r.HandleFunc("/reload", func(w http.ResponseWriter, r *http.Request) {
-		jsonr(w, "ok", d.Reload())
+		jsonr(w, "ok", db.Reload())
 	})
 
-	r.HandleFunc("/f/{hash}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc(fileURLPrefix+"{hash}", func(w http.ResponseWriter, r *http.Request) {
 		hash := r.PathValue("hash")
 
-		f, ok := d.GetFileByHash(hash)
+		f, ok := db.GetFileByHash(hash)
 		if !ok {
 			http.Error(w, "file not found", http.StatusNotFound)
 			return
 		}
 
-		fp, err := os.Open(f.FilePath)
+		fp, err := os.Open(f.FullPath())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer fp.Close()
 
-		http.ServeContent(w, r, hash, t, fp)
+		http.ServeContent(w, r, hash, startTime, fp)
 	})
 
 	srv := &http.Server{
