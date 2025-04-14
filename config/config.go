@@ -14,6 +14,7 @@ type Config struct {
 	Dirs       map[string]string
 	WithUI     bool
 	WithAPI    bool
+	AllowEdit  bool
 }
 
 var c Config
@@ -47,6 +48,7 @@ func Load() {
 	stringVar(&dirs, "dirs", ".", "The dirs that will be served")
 	boolVar(&c.WithUI, "ui", false, "Run with web UI")
 	boolVar(&c.WithAPI, "api", true, "Run with JSON API")
+	boolVar(&c.AllowEdit, "edit", true, "Allow file editing")
 	flag.Parse()
 
 	c.Dirs = map[string]string{}

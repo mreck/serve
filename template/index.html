@@ -6,7 +6,7 @@
 
 <ul id="files">
     {{ range .Files }}
-    <li data-query-str="{{ getQueryStr .}}">
+    <li data-query-str="{{ GetQueryStr . }}">
         <a href="{{ .URL }}">{{ .DirName }}: {{ .RelPath }}</a>
     </li>
     {{ end }}

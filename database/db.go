@@ -121,8 +121,10 @@ func (db *DB) RenameFile(hash string, fn string) (File, error) {
 	for i, f := range db.files {
 		if f.PathHash == hash {
 			dirPath := db.dirs[f.DirName]
+			oldPath := filepath.Join(dirPath, f.RelPath)
+			newPath := filepath.Join(dirPath, filepath.Base(fn)) // @NOTE: stop path traversal
 
-			err := os.Rename(filepath.Join(dirPath, f.RelPath), filepath.Join(dirPath, fn))
+			err := os.Rename(oldPath, newPath)
 			if err != nil {
 				return File{}, err
 			}

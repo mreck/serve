@@ -11,5 +11,6 @@ A utility for serving files via http.
 | dirs | SERVE_DIRS | The dirs that will be served | . [^1]       |
 | ui   | SERVE_UI   | Run with web UI              | false        |
 | api  | SERVE_API  | Run with JSON API            | true         |
+| edit | SERVE_EDIT | Allow file editing           | false        |
 
 [^1]: Format: `<NAME>=<DIR>;<NAME>=<DIR>;...` with the name being optional.
