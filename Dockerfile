@@ -8,10 +8,10 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
+COPY assets/ ./assets/
 COPY config/ ./config/
 COPY database/ ./database/
-COPY static/ ./static/
-COPY template/ ./template/
+COPY server/ ./server/
 COPY *.go ./
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /serve
