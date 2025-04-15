@@ -2,6 +2,14 @@ module serve
 
 go 1.24.2
 
-require github.com/mreck/gotils v1.8.0
+require (
+	github.com/mreck/gotils v1.8.0
+	github.com/stretchr/testify v1.10.0
+)
 
-require golang.org/x/exp v0.0.0-20250207012021-f9890c6ad9f3 // indirect
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/exp v0.0.0-20250207012021-f9890c6ad9f3 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)

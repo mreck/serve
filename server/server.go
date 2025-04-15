@@ -28,6 +28,11 @@ type Server struct {
 	cfg    config.Config
 }
 
+type RenameRequest struct {
+	Hash string `json:"hash"`
+	Name string `json:"name"`
+}
+
 func New(ctx context.Context, db *database.DB, cfg config.Config) (*Server, error) {
 	creationTime := time.Now()
 
@@ -64,6 +69,11 @@ func New(ctx context.Context, db *database.DB, cfg config.Config) (*Server, erro
 	if cfg.WithAPI {
 		h := httptils.NewJSONHandler(ctx)
 
+		r.HandleFunc("/api/health", h.H(
+			func(ctx context.Context, r *http.Request) (int, any, error) {
+				return http.StatusOK, "ok", nil
+			}))
+
 		r.HandleFunc("/api/data", h.H(
 			func(ctx context.Context, r *http.Request) (int, any, error) {
 				return http.StatusOK, db.GetAllFiles(), nil
@@ -82,10 +92,7 @@ func New(ctx context.Context, db *database.DB, cfg config.Config) (*Server, erro
 						return code, nil, errors.New(http.StatusText(code))
 					}
 
-					var data struct {
-						Hash string `json:"hash"`
-						Name string `json:"name"`
-					}
+					var data RenameRequest
 					err := json.NewDecoder(r.Body).Decode(&data)
 					if err != nil {
 						return http.StatusBadRequest, "", err

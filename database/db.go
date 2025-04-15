@@ -49,11 +49,15 @@ func New(dirs map[string]string, urlPrefix string) (*DB, error) {
 	return db, nil
 }
 
-func (db *DB) newFile(relPath string, dirName string) File {
-	relPath = strings.ReplaceAll(relPath, "\\", "/")
+func HashRelPath(relPath string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(relPath))
-	hash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+}
+
+func (db *DB) newFile(relPath string, dirName string) File {
+	relPath = strings.ReplaceAll(relPath, "\\", "/")
+	hash := HashRelPath(relPath)
 
 	return File{
 		DirName:  dirName,

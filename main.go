@@ -10,7 +10,9 @@ import (
 	"serve/server"
 )
 
-func init() {
+func main() {
+	ctx := context.Background()
+
 	config.Load()
 
 	var l *slog.Logger
@@ -20,10 +22,6 @@ func init() {
 		l = slog.New(slog.NewTextHandler(os.Stdout, nil))
 	}
 	slog.SetDefault(l)
-}
-
-func main() {
-	ctx := context.Background()
 
 	db, err := database.New(config.Get().Dirs, server.FileURLPrefix)
 	if err != nil {
