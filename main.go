@@ -31,5 +31,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	server.Run(ctx, db)
+	s, err := server.New(ctx, db, config.Get())
+	if err != nil {
+		slog.Error("creating server failed", "error", err)
+		os.Exit(1)
+	}
+
+	err = <-s.Run()
+	if err != nil {
+		slog.Error("running server failed", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("server closed")
 }

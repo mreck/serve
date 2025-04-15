@@ -23,8 +23,13 @@ const (
 	FileURLPrefix = "/f/"
 )
 
-func Run(ctx context.Context, db *database.DB) {
-	startTime := time.Now()
+type Server struct {
+	server *http.Server
+	cfg    config.Config
+}
+
+func New(ctx context.Context, db *database.DB, cfg config.Config) (*Server, error) {
+	creationTime := time.Now()
 
 	tfuncs := template.FuncMap{
 		"GetQueryStr": func(f database.File) string {
@@ -40,7 +45,7 @@ func Run(ctx context.Context, db *database.DB) {
 
 	r := http.NewServeMux()
 
-	if config.Get().WithUI {
+	if cfg.WithUI {
 		html := httptils.NewHTMLHandler(ctx, t)
 
 		r.Handle("/static/", http.FileServer(http.FS(assets.Static)))
@@ -56,7 +61,7 @@ func Run(ctx context.Context, db *database.DB) {
 			}))
 	}
 
-	if config.Get().WithAPI {
+	if cfg.WithAPI {
 		h := httptils.NewJSONHandler(ctx)
 
 		r.HandleFunc("/api/data", h.H(
@@ -69,7 +74,7 @@ func Run(ctx context.Context, db *database.DB) {
 				return http.StatusOK, "ok", db.Reload()
 			}))
 
-		if config.Get().AllowEdit {
+		if cfg.AllowEdit {
 			r.HandleFunc("/api/rename", h.H(
 				func(ctx context.Context, r *http.Request) (int, any, error) {
 					if r.Method != http.MethodPost {
@@ -113,25 +118,38 @@ func Run(ctx context.Context, db *database.DB) {
 			}
 			defer fp.Close()
 
-			http.ServeContent(w, r, hash, startTime, fp)
+			http.ServeContent(w, r, hash, creationTime, fp)
 		})
 
 	srv := &http.Server{
 		Handler:      r,
-		Addr:         config.Get().ServerAddr,
+		Addr:         cfg.ServerAddr,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
-	slog.Info("starting server",
-		"addr", config.Get().ServerAddr,
-		"dirs", config.Get().Dirs,
-		"ui", config.Get().WithUI,
-		"api", config.Get().WithAPI)
+	return &Server{srv, cfg}, nil
+}
 
-	err = srv.ListenAndServe()
-	if err != nil {
-		slog.Error("starting server failed", "error", err)
-		os.Exit(1)
-	}
+func (s *Server) Run() <-chan error {
+	onClose := make(chan error)
+
+	slog.Info("starting server",
+		"addr", s.cfg.ServerAddr,
+		"dirs", s.cfg.Dirs,
+		"ui", s.cfg.WithUI,
+		"api", s.cfg.WithAPI)
+
+	go func() {
+		err := s.server.ListenAndServe()
+		if err != nil {
+			if errors.Is(err, http.ErrServerClosed) {
+				onClose <- nil
+			} else {
+				onClose <- err
+			}
+		}
+	}()
+
+	return onClose
 }
